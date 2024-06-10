@@ -2,6 +2,13 @@
 #include <fstream>
 #include <vector>
 
+// Cabecera tiene un tamaño, dicho tamaño se usa para caminar por el archivo. Se tiene que poner toda la estructura del nodo del arbol b en ella.
+// sizeof(cabecera) * offset siendo offset el numero de posicion de lo que quieras encontrar.
+// https://aprendeaprogramar.com/cursos/verApartado.php?id=16801
+// https://pastebin.com/A450dNmE
+
+// Tabla hash encadenada tal que pueda localizar el offset
+
 /**
  * @brief Clase que implementa una tabla hash de tamaño dinámico
  */
@@ -28,9 +35,7 @@ int main()
     {
         std::string dni = line.substr(0, line.find(','));
         binFile.write(reinterpret_cast<const char *>(&dni), sizeof(dni));
-        binFile.write(",", sizeof(char));
         binFile.write(reinterpret_cast<const char *>(&line), sizeof(line));
-        binFile.write("\n", sizeof(char));
     }
     binFile.close();
     return 0;
