@@ -8,7 +8,7 @@ using namespace std;
 // Nodo del árbol de prefijos
 struct TrieNode
 {
-	int posicion;							  // posición de la palabra en el archivo
+	long posicion;							  // posición de la palabra en el archivo
 	unordered_map<char, TrieNode *> children; // mapa para almacenar los nodos hijos
 
 	TrieNode() : posicion(-1) {} // Constructor
@@ -29,7 +29,7 @@ struct Trie
 	~Trie() {}
 
 	// insertar una palabra en el trie
-	void insert(const string &palabra, int posicion)
+	void insert(const string &palabra, long posicion)
 	{
 		TrieNode *node = root; // comenzamos el recorrido desde la raíz
 		// recorremos cada caracter de la palabra
