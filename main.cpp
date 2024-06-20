@@ -5,15 +5,9 @@
 #include <memory>
 #include "trie completo.h"
 
-// Cabecera tiene un tamaño, dicho tamaño se usa para caminar por el archivo. Se tiene que poner toda la estructura del nodo del arbol b en ella.
-// sizeof(cabecera) * offset siendo offset el numero de posicion de lo que quieras encontrar.
-// https://aprendeaprogramar.com/cursos/verApartado.php?id=16801
-// https://pastebin.com/A450dNmE
-// Tabla hash encadenada tal que pueda localizar el offset
-
 using std::filesystem::path;
 
-struct RegistroBin
+struct RegistroBin // 64 bytes
 {
     std::string dni;
     std::string datos;
@@ -37,7 +31,7 @@ struct RegistroBin
     }
 };
 
-struct RegistroPos
+struct RegistroPos // 40 bytes
 {
     long offset;
     std::string dni;
@@ -49,13 +43,13 @@ struct RegistroPos
     // Deserializacion de un RegistroPos desde un archivo binario
     static RegistroPos readFrom(std::ifstream &file)
     {
-        RegistroPos reg;
+        long offset;
         size_t dniSize;
-        file.read(reinterpret_cast<char *>(&dniSize), sizeof(dniSize));       // Se lee el tamaño del dni
-        reg.dni.resize(dniSize);                                              // Se redimensiona el string dni
-        file.read(&reg.dni[0], dniSize);                                      // Se lee el dni
-        file.read(reinterpret_cast<char *>(&reg.offset), sizeof(reg.offset)); // Se lee el offset
-        return reg;
+        file.read(reinterpret_cast<char *>(&offset), sizeof(offset));   // Se lee el offset
+        file.read(reinterpret_cast<char *>(&dniSize), sizeof(dniSize)); // Se lee el tamaño del dni
+        std::string dni(dniSize, '\0');                                 // Se redimensiona el string dni
+        file.read(&dni[0], dniSize);                                    // Se lee el dni
+        return RegistroPos(offset, dni);
     }
 };
 
@@ -101,6 +95,11 @@ void escribirArchivosBinario(const std::string &filename, Cabecera &cabeceraMain
             std::cerr << "Error: could not create binary file" << std::endl;
             return;
         }
+
+        binFile.seekp(sizeof(Cabecera) - 1);
+        binFile.write("", 1);
+        posBinFile.seekp(sizeof(Cabecera) - 1);
+        posBinFile.write("", 1);
 
         std::string line;
         std::getline(file, line); // Saltamos la primera linea del csv
@@ -171,8 +170,6 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
         std::cerr << "Error: could not read binary file" << std::endl;
         return;
     }
-    std::cout << "Numero de registros: " << cabeceraBin.num_registros << std::endl;
-    std::cout << "Numero de registros de posicion: " << cabeceraPosBin.num_registros << std::endl;
 
     // Estrategia de busqueda
     // 1. Se lee la cabecera del archivo de posiciones
@@ -188,29 +185,22 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
     // Lectura de registros de posicion
     Trie trie;
     size_t registrosLeidos = 0;
-    size_t bufferSize = 125000000; // 1GB de registros de posicion
+    size_t cantRegistros = 12500000; // Cantidad de registros de posicion a leer en cada iteración
     bool encontrado = false;
     while (registrosLeidos < cabeceraPosBin.num_registros)
     {
-        std::vector<RegistroPos> buffer;
-        buffer.reserve(bufferSize);
-        for (size_t i = 0; i < bufferSize && registrosLeidos < cabeceraPosBin.num_registros; i++)
+        for (size_t i = 0; i < cantRegistros && registrosLeidos < cabeceraPosBin.num_registros; i++)
         {
-            RegistroPos regPos = RegistroPos::readFrom(posBinFile);
+            std::unique_ptr<RegistroPos> regPos = std::make_unique<RegistroPos>(RegistroPos::readFrom(posBinFile));
             if (!posBinFile.good())
             {
                 std::cerr << "Error: could not read binary file" << std::endl;
                 break;
             }
-            buffer.emplace_back(regPos);
+            trie.insert(regPos.get()->dni, regPos.get()->offset);
             registrosLeidos++;
         }
-        trie.clear();
-        for (const auto &regPos : buffer)
-        {
-            trie.insert(regPos.dni, regPos.offset);
-        }
-        // Busqueda del dni
+
         long offset = trie.searchAndGetOffset(dni);
         if (offset != -1)
         {
@@ -220,7 +210,7 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
             encontrado = true;
             break;
         }
-        buffer.clear();
+        trie.clear();
     }
     if (!encontrado)
     {
@@ -233,7 +223,6 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
 
 int main()
 {
-
     std::cout << "Ingrese nombre y extension del archivo a leer: ";
     std::string filename;
     std::cin >> filename;
