@@ -11,12 +11,7 @@
 // https://pastebin.com/A450dNmE
 // Tabla hash encadenada tal que pueda localizar el offset
 
-struct CabeceraMain
-{
-    uint64_t num_registros;
-    CabeceraMain(){};
-    CabeceraMain(long num_registros) : num_registros(num_registros) {}
-};
+using std::filesystem::path;
 
 struct RegistroBin
 {
@@ -26,13 +21,20 @@ struct RegistroBin
     RegistroBin(const std::string &dni, const std::string &datos) : dni(dni), datos(datos) {}
     RegistroBin() = default;
     ~RegistroBin(){};
-};
 
-struct CabeceraPos
-{
-    uint64_t num_registros;
-    CabeceraPos(){};
-    CabeceraPos(long num_registros) : num_registros(num_registros) {}
+    // Deserializacion de un RegistroBin desde un archivo binario
+    static RegistroBin readFrom(std::ifstream &file)
+    {
+        RegistroBin reg;
+        size_t dniSize, datosSize;
+        file.read(reinterpret_cast<char *>(&dniSize), sizeof(dniSize)); // Se lee el tamaño del dni
+        reg.dni.resize(dniSize);                                        // Se redimensiona el string dni
+        file.read(&reg.dni[0], dniSize);                                // Se lee el dni
+        file.read(reinterpret_cast<char *>(&datosSize), sizeof(datosSize));
+        reg.datos.resize(datosSize);
+        file.read(&reg.datos[0], datosSize);
+        return reg;
+    }
 };
 
 struct RegistroPos
@@ -43,12 +45,46 @@ struct RegistroPos
     RegistroPos(std::streampos offset, const std::string &dni) : offset(offset), dni(dni) {}
     RegistroPos() = default;
     ~RegistroPos(){};
+
+    // Deserializacion de un RegistroPos desde un archivo binario
+    static RegistroPos readFrom(std::ifstream &file)
+    {
+        RegistroPos reg;
+        size_t dniSize;
+        file.read(reinterpret_cast<char *>(&dniSize), sizeof(dniSize));       // Se lee el tamaño del dni
+        reg.dni.resize(dniSize);                                              // Se redimensiona el string dni
+        file.read(&reg.dni[0], dniSize);                                      // Se lee el dni
+        file.read(reinterpret_cast<char *>(&reg.offset), sizeof(reg.offset)); // Se lee el offset
+        return reg;
+    }
 };
 
-void escribirArchivosBinario(const std::string &filename, CabeceraMain &cabeceraMain, CabeceraPos &cabeceraPos)
+struct Cabecera
 {
-    std::string binname = filename.substr(0, filename.find_last_of('.')) + ".bin";        // Archivo binario con los registros
-    std::string posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin"; //  Archivo binario con las posición de los registros
+    uint64_t num_registros;
+    Cabecera(){};
+    Cabecera(long num_registros) : num_registros(num_registros) {}
+};
+
+// Funcion para obtener el tamaño de un archivo
+std::uintmax_t GetFileSize(const std::string &filename)
+{
+    std::ifstream in(filename, std::ios::binary | std::ios::ate);
+    if (!in.is_open())
+    {
+        std::cerr << "Error al abrir el archivo para obtener el tamanio." << std::endl;
+        return -1;
+    }
+    std::uintmax_t fileSize = in.tellg();
+    in.close();
+    std::cout << "Tamanio del archivo: " << fileSize << " bytes" << std::endl;
+    return fileSize;
+}
+
+void escribirArchivosBinario(const std::string &filename, Cabecera &cabeceraMain, Cabecera &cabeceraPos)
+{
+    path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";        // Archivo binario con los registros
+    path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin"; //  Archivo binario con las posición de los registros
     if (!std::filesystem::exists(binname))
     {
         std::ifstream file(filename);
@@ -72,10 +108,23 @@ void escribirArchivosBinario(const std::string &filename, CabeceraMain &cabecera
         {
             std::string dni = line.substr(0, line.find(','));
             long currentPos = binFile.tellp();
-            std::unique_ptr<RegistroPos> regPos(new RegistroPos(currentPos, dni));
-            posBinFile.write(reinterpret_cast<const char *>(regPos.get()), sizeof(RegistroPos));
-            std::unique_ptr<RegistroBin> reg(new RegistroBin(dni, line));
-            binFile.write(reinterpret_cast<const char *>(reg.get()), sizeof(RegistroBin));
+
+            // Serializamos los registros
+            size_t dniSize = dni.size();
+            posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
+            posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+            posBinFile.write(dni.c_str(), dniSize);
+
+            // Serializamos los registros
+            // Primero, serializamos el dni
+            binFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+            binFile.write(dni.c_str(), dniSize);
+
+            // Luego, serializamos la linea
+            size_t lineSize = line.size();
+            binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
+            binFile.write(line.c_str(), lineSize);
+
             cabeceraMain.num_registros++;
             cabeceraPos.num_registros++;
         }
@@ -99,8 +148,8 @@ void escribirArchivosBinario(const std::string &filename, CabeceraMain &cabecera
 
 void buscarRegistro(const std::string &filename, const std::string &dni)
 {
-    std::string binname = filename.substr(0, filename.find_last_of('.')) + ".bin";        // Archivo binario con los registros
-    std::string posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin"; //  Archivo binario con las posición de los registros
+    path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";        // Archivo binario con los registros
+    path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin"; //  Archivo binario con las posición de los registros
     if (!std::filesystem::exists(binname) || !std::filesystem::exists(posbinname))
     {
         std::cerr << "Error: binary files not found" << std::endl;
@@ -116,10 +165,12 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
     }
 
     // Lectura de cabeceras
-    CabeceraMain cabeceraBin;
-    CabeceraPos cabeceraPosBin;
-    binFile.read(reinterpret_cast<char *>(&cabeceraBin), sizeof(CabeceraMain));
-    posBinFile.read(reinterpret_cast<char *>(&cabeceraPosBin), sizeof(CabeceraPos));
+    Cabecera cabeceraBin, cabeceraPosBin;
+    if (!binFile.read(reinterpret_cast<char *>(&cabeceraBin), sizeof(Cabecera)) || !posBinFile.read(reinterpret_cast<char *>(&cabeceraPosBin), sizeof(Cabecera)))
+    {
+        std::cerr << "Error: could not read binary file" << std::endl;
+        return;
+    }
     std::cout << "Numero de registros: " << cabeceraBin.num_registros << std::endl;
     std::cout << "Numero de registros de posicion: " << cabeceraPosBin.num_registros << std::endl;
 
@@ -135,50 +186,48 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
     // 9. Se repite el proceso hasta que se encuentre el dni o se haya recorrido todos los registros de posicion, cuyo caso devuelve un mensaje de que no fue encontrado el dni
 
     // Lectura de registros de posicion
-    // Cantidad de registros a leer en cada iteración
-    size_t buffer_size = 1000;
-
-    // Lectura de registros de posicion
+    Trie trie;
     size_t registrosLeidos = 0;
-    Trie *trie = new Trie();
+    size_t bufferSize = 125000000; // 1GB de registros de posicion
+    bool encontrado = false;
     while (registrosLeidos < cabeceraPosBin.num_registros)
     {
-        size_t regsFaltantes = cabeceraPosBin.num_registros - registrosLeidos;
-        size_t regsALeer = std::min(buffer_size, regsFaltantes);
-
-        std::vector<RegistroPos> buffer(regsALeer); // Buffer para almacenar una cantidad de registros de posicion
-        // Rellenar el buffer con registros de posicion
-        posBinFile.read(reinterpret_cast<char *>(buffer.data()), regsALeer * sizeof(RegistroPos)); // BUG: No se lee correctamente
-
-        // Se coloca cada registro de posicion en el buffer en un arbol trie
-        for (const auto &reg : buffer)
+        std::vector<RegistroPos> buffer;
+        buffer.reserve(bufferSize);
+        for (size_t i = 0; i < bufferSize && registrosLeidos < cabeceraPosBin.num_registros; i++)
         {
-            trie->insert(reg.dni, reg.offset);
-        }
-
-        registrosLeidos += regsALeer; // Se actualiza el numero de registros leidos
-        // Se busca el dni en el arbol trie solamente cuando se haya llenado el buffer
-        if (registrosLeidos % buffer_size == 0)
-        {
-            std::streampos offset = trie->search(dni);
-            if (offset != -1)
+            RegistroPos regPos = RegistroPos::readFrom(posBinFile);
+            if (!posBinFile.good())
             {
-                // Se lee el registro en la posición encontrada
-                binFile.seekg(offset);
-                RegistroBin reg;
-                binFile.read(reinterpret_cast<char *>(&reg), sizeof(RegistroBin));
-                std::cout << "Registro encontrado: " << reg.dni << " " << reg.datos << std::endl;
-                binFile.close();
-                posBinFile.close();
-                return;
+                std::cerr << "Error: could not read binary file" << std::endl;
+                break;
             }
-            delete trie;
-            buffer.clear();
+            buffer.emplace_back(regPos);
+            registrosLeidos++;
         }
+        trie.clear();
+        for (const auto &regPos : buffer)
+        {
+            trie.insert(regPos.dni, regPos.offset);
+        }
+        // Busqueda del dni
+        long offset = trie.searchAndGetOffset(dni);
+        if (offset != -1)
+        {
+            binFile.seekg(offset);
+            RegistroBin reg = RegistroBin::readFrom(binFile);
+            std::cout << "Registro encontrado: " << reg.datos << std::endl;
+            encontrado = true;
+            break;
+        }
+        buffer.clear();
     }
-    binFile.close();
+    if (!encontrado)
+    {
+        std::cout << "Registro no encontrado" << std::endl;
+    }
     posBinFile.close();
-    std::cout << "Registro no encontrado" << std::endl;
+    binFile.close();
     return;
 }
 
@@ -189,8 +238,7 @@ int main()
     std::string filename;
     std::cin >> filename;
 
-    CabeceraMain cabeceraMain;
-    CabeceraPos cabeceraPos;
+    Cabecera cabeceraMain, cabeceraPos;
 
     escribirArchivosBinario(filename, cabeceraMain, cabeceraPos);
 

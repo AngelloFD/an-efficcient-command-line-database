@@ -6,27 +6,42 @@
 using namespace std;
 
 // Nodo del árbol de prefijos
-struct TrieNode
+class Trie
 {
-	long posicion;							  // posición de la palabra en el archivo
-	unordered_map<char, TrieNode *> children; // mapa para almacenar los nodos hijos
+private:
+	struct TrieNode
+	{
+		long posicion = -1;						  // posición de la palabra en el archivo
+		unordered_map<char, TrieNode *> children; // mapa para almacenar los nodos hijos
 
-	TrieNode() : posicion(-1) {} // Constructor
-};
+		// Destructor para liberar memoria de los nodos hijos
+		~TrieNode()
+		{
+			for (auto &p : children)
+			{
+				delete p.second;
+			}
+		}
+	};
 
-// Estructura Trie que manejará el árbol de prefijos:
-
-struct Trie
-{
 	TrieNode *root; // nodo raíz del Trie
 
-	// Constructor
-	Trie()
+	void clearNode(TrieNode *node)
 	{
-		root = new TrieNode(); // Inicializa el nodo raíz
+		if (node != nullptr)
+		{
+			delete node;
+		}
 	}
 
-	~Trie() {}
+public:
+	// Constructor
+	Trie() : root(new TrieNode()) {}
+
+	~Trie()
+	{
+		clear();
+	}
 
 	// insertar una palabra en el trie
 	void insert(const string &palabra, long posicion)
@@ -59,5 +74,27 @@ struct Trie
 			node = node->children[c];
 		}
 		return node != nullptr && node->posicion != -1; // la palabra existe en el árbol
+	}
+
+	long searchAndGetOffset(const string &palabra)
+	{
+		TrieNode *node = root;
+		for (char c : palabra)
+		{
+			// Si el caracter no está presente entre los hijos
+			if (node->children.find(c) == node->children.end())
+			{
+				return -1; // la palabra no existe en el árbol
+			}
+			node = node->children[c];
+		}
+		return node->posicion; // la palabra existe en el árbol
+	}
+
+	// Funcion para borrar el trie y todos sus nodos para liberar memoria
+	void clear()
+	{
+		clearNode(root);
+		root = new TrieNode();
 	}
 };
