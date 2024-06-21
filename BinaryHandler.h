@@ -8,6 +8,8 @@
 
 using std::filesystem::path;
 
+#define MAX_SIZE 50000
+
 struct RegistroBin // 64 bytes
 {
     std::string dni;
@@ -157,7 +159,7 @@ long buscarOffsetDelRegistro(const std::string &filename, const std::string &dni
 
     Trie trie;
     size_t registrosLeidos = 0;
-    size_t cantRegistros = 50000;
+    size_t cantRegistros = MAX_SIZE;
     while (registrosLeidos < cabeceraPosBin.num_registros)
     {
         for (size_t i = 0; i < cantRegistros && registrosLeidos < cabeceraPosBin.num_registros; i++)
@@ -215,58 +217,65 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
     std::cout << "Registro encontrado: " << reg.datos << std::endl;
 }
 
-// void añadirRegistro(const std::string &filename, const std::string &dni, const std::string &line, Cabecera &cabeceraMain, Cabecera &cabeceraPos)
-// {
-//     path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";        // Archivo binario con los registros
-//     path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin"; //  Archivo binario con las posición de los registros
-//     if (!std::filesystem::exists(binname) || !std::filesystem::exists(posbinname))
-//     {
-//         std::cerr << "Error: binary files not found" << std::endl;
-//         return;
-//     }
+/**
+ * @brief Funcion para agregar un nuevo registro al archivo binario
+ * @param filename Nombre del archivo csv
+ * @param dni DNI a agregar
+ * @param newData Datos a agregar
+ */
+void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &cabeceraPos, const std::string &dni, const std::string &newData) // BUG: No agrega toda la newData
+{
+    long offset = buscarOffsetDelRegistro(filename, dni);
+    if (offset == -1)
+    {
+        // El registro no existe, se debe agregar al final del archivo
+        path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";        // Archivo binario con los registros
+        path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin"; //  Archivo binario con las posición de los registros
 
-//     std::ifstream binFile(binname, std::ios::binary);
-//     std::ifstream posBinFile(posbinname, std::ios::binary);
-//     if (!binFile.is_open() || !posBinFile.is_open())
-//     {
-//         std::cerr << "Error: could not create binary file" << std::endl;
-//         return;
-//     }
+        std::fstream binFile(binname, std::ios::binary | std::ios::in | std::ios::out);
+        std::fstream posBinFile(posbinname, std::ios::binary | std::ios::in | std::ios::out);
+        if (!binFile.is_open() || !posBinFile.is_open())
+        {
+            std::cerr << "Error: could not create binary file" << std::endl;
+            return;
+        }
 
-//     // Lectura de cabeceras
-//     if (!binFile.read(reinterpret_cast<char *>(&cabeceraMain), sizeof(Cabecera)) || !posBinFile.read(reinterpret_cast<char *>(&cabeceraPos), sizeof(Cabecera)))
-//     {
-//         std::cerr << "Error: could not read binary file" << std::endl;
-//         return;
-//     }
-//     binFile.close();
-//     posBinFile.close();
+        if (!binFile.read(reinterpret_cast<char *>(&cabeceraMain), sizeof(Cabecera)) || !posBinFile.read(reinterpret_cast<char *>(&cabeceraPos), sizeof(Cabecera)))
+        {
+            std::cerr << "Error: could not read binary file headers" << std::endl;
+            return;
+        }
 
-//     std::ofstream writeBinFile(binname, std::ios::binary | std::ios::app);
-//     std::ofstream writePosBinFile(posbinname, std::ios::binary | std::ios::app);
-//     if (!writeBinFile.is_open() || !writePosBinFile.is_open())
-//     {
-//         std::cerr << "Error: could not create binary file" << std::endl;
-//         return;
-//     }
+        binFile.seekp(0, std::ios::end);
+        posBinFile.seekp(0, std::ios::end);
+        long currentPos = binFile.tellp();
 
-//     long currentPos = writeBinFile.tellp();
-//     // Serializamos los registros
-//     size_t dniSize = dni.size();
-//     writePosBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
-//     writePosBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-//     writePosBinFile.write(dni.c_str(), dniSize);
+        size_t dniSize = dni.size();
+        posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
+        posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+        posBinFile.write(dni.c_str(), dniSize);
 
-//     // Serializamos los registros
-//     // Primero, serializamos el dni
-//     writeBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-//     writeBinFile.write(dni.c_str(), dniSize);
+        binFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+        binFile.write(dni.c_str(), dniSize);
 
-//     // Luego, serializamos la linea
-//     size_t lineSize = line.size();
-//     writeBinFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
-//     writeBinFile.write(line.c_str(), lineSize);
+        size_t lineSize = newData.size();
+        binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
+        binFile.write(newData.c_str(), lineSize);
 
-//     cabeceraMain.num_registros++;
-//     cabeceraPos.num_registros++;
-// }
+        cabeceraMain.num_registros++;
+        cabeceraPos.num_registros++;
+
+        binFile.seekp(0, std::ios::beg);
+        binFile.write(reinterpret_cast<const char *>(&cabeceraMain), sizeof(cabeceraMain));
+        posBinFile.seekp(0, std::ios::beg);
+        posBinFile.write(reinterpret_cast<const char *>(&cabeceraPos), sizeof(cabeceraPos));
+
+        binFile.close();
+        posBinFile.close();
+    }
+    else
+    {
+        std::cout << "Registro ya existe" << std::endl;
+    }
+    std::cout << "Registro agregado" << std::endl;
+}

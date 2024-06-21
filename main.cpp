@@ -58,6 +58,7 @@ int main()
         } while (dni.size() != 8 && !std::all_of(dni.begin(), dni.end(), ::isdigit)); // Validar que el dni tenga 8 caracteres (numeros)
         std::cout << "Ingrese los datos a agregar separados por comas: ";
         std::cin >> line;
+        addRegistro(filename, cabeceraMain, cabeceraPos, dni, line);
         break;
     }
     case 3:
