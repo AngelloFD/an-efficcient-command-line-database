@@ -50,14 +50,14 @@ int main()
     }
     case 2:
     {
-        // std::string dni, datos;
-        // do
-        // {
-        //     std::cout << "Ingrese el dni a agregar: ";
-        //     std::cin >> dni;
-        // } while (dni.size() != 8 && !std::all_of(dni.begin(), dni.end(), ::isdigit)); // Validar que el dni tenga 8 caracteres (numeros)
-        // std::cout << "Ingrese los datos a agregar separados por comas: ";
-        // std::cin >> datos;
+        std::string dni, line;
+        do
+        {
+            std::cout << "Ingrese el dni a agregar: ";
+            std::cin >> dni;
+        } while (dni.size() != 8 && !std::all_of(dni.begin(), dni.end(), ::isdigit)); // Validar que el dni tenga 8 caracteres (numeros)
+        std::cout << "Ingrese los datos a agregar separados por comas: ";
+        std::cin >> line;
         break;
     }
     case 3:
