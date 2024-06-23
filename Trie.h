@@ -11,15 +11,15 @@ class Trie
 private:
 	struct TrieNode
 	{
-		long posicion = -1;						  // posición de la palabra en el archivo
-		unordered_map<char, TrieNode *> children; // mapa para almacenar los nodos hijos
+		long posicion = -1;			 // posición de la palabra en el archivo
+		TrieNode *children[10] = {}; // array de punteros a los nodos hijos
 
 		// Destructor para liberar memoria de los nodos hijos
 		~TrieNode()
 		{
-			for (auto &p : children)
+			for (auto &child : children)
 			{
-				delete p.second;
+				delete child;
 			}
 		}
 	};
@@ -50,13 +50,14 @@ public:
 		// recorremos cada caracter de la palabra
 		for (char c : palabra)
 		{
+			int index = c - '0'; // Convertir el carácter a índice (0-9)
 			// si el caracter no está en el recorrido (hijos) del nodo actual
 			// lo agregamos
-			if (node->children.find(c) == node->children.end())
+			if (node->children[index] == nullptr)
 			{
-				node->children[c] = new TrieNode(); // Crear un nuevo nodo hijo
+				node->children[index] = new TrieNode(); // Crear un nuevo nodo hijo
 			}
-			node = node->children[c]; // moverse al nodo hijo correspondiente
+			node = node->children[index]; // moverse al nodo hijo correspondiente
 		}
 		node->posicion = posicion; // guardar la posicion de la palabra en el archivo
 	}
@@ -66,12 +67,13 @@ public:
 		TrieNode *node = root;
 		for (char c : palabra)
 		{
+			int index = c - '0';
 			// Si el caracter no está presente entre los hijos
-			if (node->children.find(c) == node->children.end())
+			if (node->children[index] == nullptr)
 			{
 				return false; // la palabra no existe en el árbol
 			}
-			node = node->children[c];
+			node = node->children[index];
 		}
 		return node != nullptr && node->posicion != -1; // la palabra existe en el árbol
 	}
@@ -81,12 +83,13 @@ public:
 		TrieNode *node = root;
 		for (char c : palabra)
 		{
+			int index = c - '0';
 			// Si el caracter no está presente entre los hijos
-			if (node->children.find(c) == node->children.end())
+			if (node->children[index] == nullptr)
 			{
 				return -1; // la palabra no existe en el árbol
 			}
-			node = node->children[c];
+			node = node->children[index];
 		}
 		return node->posicion; // la palabra existe en el árbol
 	}
