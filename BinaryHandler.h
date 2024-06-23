@@ -63,6 +63,25 @@ struct Cabecera // 8 bytes
     Cabecera(long num_registros) : num_registros(num_registros) {}
 };
 
+void serializarRegistro(std::ofstream &posBinFile, std::ofstream &binFile, const std::string &dni, const std::string &line)
+{
+    size_t dniSize = dni.size();
+    long currentPos = binFile.tellp();
+    posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
+    posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+    posBinFile.write(dni.c_str(), dniSize);
+
+    // Serializamos los registros para el archivo principal
+    // Primero, serializamos el dni
+    binFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+    binFile.write(dni.c_str(), dniSize);
+
+    // Luego, serializamos la línea
+    size_t lineSize = line.size();
+    binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
+    binFile.write(line.c_str(), lineSize);
+}
+
 /**
  * @brief Funcion para escribir los archivos binarios
  * @param filename Nombre del archivo csv
@@ -100,21 +119,23 @@ void escribirArchivosBinario(const std::string &filename, Cabecera &cabeceraMain
             std::string dni = line.substr(0, line.find(','));
             long currentPos = binFile.tellp();
 
-            // Serializamos los registros
-            size_t dniSize = dni.size();
-            posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
-            posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-            posBinFile.write(dni.c_str(), dniSize);
+            serializarRegistro(posBinFile, binFile, dni, line);
 
-            // Serializamos los registros
-            // Primero, serializamos el dni
-            binFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-            binFile.write(dni.c_str(), dniSize);
+            // // Serializamos los registros
+            // size_t dniSize = dni.size();
+            // posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
+            // posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+            // posBinFile.write(dni.c_str(), dniSize);
 
-            // Luego, serializamos la linea
-            size_t lineSize = line.size();
-            binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
-            binFile.write(line.c_str(), lineSize);
+            // // Serializamos los registros
+            // // Primero, serializamos el dni
+            // binFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+            // binFile.write(dni.c_str(), dniSize);
+
+            // // Luego, serializamos la linea
+            // size_t lineSize = line.size();
+            // binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
+            // binFile.write(line.c_str(), lineSize);
 
             cabeceraMain.num_registros++;
             cabeceraPos.num_registros++;
@@ -227,36 +248,42 @@ void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &
     path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";
     path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin";
 
-    std::fstream binFile(binname, std::ios::binary | std::ios::out | std::ios::in);
-    std::fstream posBinFile(posbinname, std::ios::binary | std::ios::out | std::ios::in);
+    std::ifstream readBinFile(binname, std::ios::binary);
+    std::ifstream readPosBinFile(posbinname, std::ios::binary);
+    if (!readBinFile.is_open() || !readPosBinFile.is_open())
+    {
+        throw std::runtime_error("Error: no se pudo abrir el archivo binario");
+    }
+
+    if (!readBinFile.read(reinterpret_cast<char *>(&cabeceraMain), sizeof(Cabecera)) || !readPosBinFile.read(reinterpret_cast<char *>(&cabeceraPos), sizeof(Cabecera)))
+    {
+        throw std::runtime_error("Error: no se pudo leer los headers");
+    }
+
+    std::ofstream binFile(binname, std::ios::binary | std::ios::out | std::ios::app);
+    std::ofstream posBinFile(posbinname, std::ios::binary | std::ios::out | std::ios::app);
     if (!binFile.is_open() || !posBinFile.is_open())
     {
         throw std::runtime_error("Error: no se pudo abrir el archivo binario");
     }
 
-    if (!binFile.read(reinterpret_cast<char *>(&cabeceraMain), sizeof(Cabecera)) || !posBinFile.read(reinterpret_cast<char *>(&cabeceraPos), sizeof(Cabecera)))
-    {
-        throw std::runtime_error("Error: no se pudo leer los headers");
-    }
+    // Ir a la ultima posicion del archivo, moverse al final de la linea y escribir el nuevo registro
 
-    // Obtener la posicion en la que el ultimo registro tanto de posicion como de datos termina
-    binFile.seekp(0, std::ios::end);
-    posBinFile.seekp(0, std::ios::end);
-
-    long currentPos = posBinFile.tellp();
-    size_t dniSize = dni.size();
-    posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
-    posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-    posBinFile.write(dni.c_str(), dniSize);
-
-    size_t lineSize = newData.size();
-    binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
-    binFile.write(newData.c_str(), lineSize);
+    serializarRegistro(posBinFile, binFile, dni, newData);
+    binFile.close();
+    posBinFile.close();
 
     cabeceraMain.num_registros++;
     cabeceraPos.num_registros++;
 
     // Reescribir las cabeceras actualizadas
+    binFile.open(binname, std::ios::binary | std::ios::out | std::ios::in);
+    posBinFile.open(posbinname, std::ios::binary | std::ios::out | std::ios::in);
+    if (!binFile.is_open() || !posBinFile.is_open())
+    {
+        throw std::runtime_error("Error: no se pudo abrir el archivo binario");
+    }
+
     binFile.seekp(0, std::ios::beg);
     binFile.write(reinterpret_cast<const char *>(&cabeceraMain), sizeof(cabeceraMain));
     posBinFile.seekp(0, std::ios::beg);
