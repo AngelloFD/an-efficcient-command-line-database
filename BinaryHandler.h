@@ -32,6 +32,17 @@ struct RegistroBin // 64 bytes
         file.read(&reg.datos[0], datosSize);
         return reg;
     }
+
+    void writeTo(std::ofstream &file)
+    {
+        size_t dniSize = dni.size();
+        file.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+        file.write(dni.c_str(), dniSize);
+
+        size_t datosSize = datos.size();
+        file.write(reinterpret_cast<const char *>(&datosSize), sizeof(datosSize));
+        file.write(datos.c_str(), datosSize);
+    }
 };
 
 struct RegistroPos // 40 bytes
@@ -116,6 +127,11 @@ void escribirArchivosBinario(const std::string &filename, Cabecera &cabeceraMain
         std::getline(file, line); // Saltamos la primera linea del csv
         while (std::getline(file, line))
         {
+            if (!line.empty() && line.back() == '\r')
+            {
+                line.pop_back();
+            }
+
             std::string dni = line.substr(0, line.find(','));
             long currentPos = binFile.tellp();
 
@@ -293,4 +309,36 @@ void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &
 
     binFile.close();
     posBinFile.close();
+}
+
+void noteRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &cabeceraPos, const std::string &dni)
+{
+    long offset = buscarOffsetDelRegistro(filename, dni);
+    if (offset == -1)
+    {
+        std::cout << "Registro no encontrado" << std::endl;
+        return;
+    }
+
+    path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";
+
+    std::ifstream binFile(binname, std::ios::binary | std::ios::in | std::ios::out);
+    if (!binFile.is_open())
+    {
+        throw std::runtime_error("Error: no se pudo abrir el archivo binario");
+    }
+
+    binFile.seekg(offset);
+    RegistroBin reg = RegistroBin::readFrom(binFile);
+    binFile.close();
+
+    std::ofstream writeBinFile(binname, std::ios::binary | std::ios::in | std::ios::out);
+    reg.datos.append(",DESACTIVADO");
+
+    writeBinFile.seekp(offset);
+    reg.writeTo(writeBinFile);
+
+    std::cout << "Registro anotado exitosamente" << std::endl;
+
+    writeBinFile.close();
 }

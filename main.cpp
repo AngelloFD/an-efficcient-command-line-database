@@ -18,7 +18,7 @@ int main()
         std::cout << "Ingrese una opcion: " << '\n';
         std::cout << "1. Buscar registro" << '\n';
         std::cout << "2. Agregar registro" << '\n';
-        std::cout << "3. Eliminar registro" << '\n';
+        std::cout << "3. Anotar registro" << '\n';
         std::cout << "0. Salir" << '\n';
         std::cin >> n;
     } while (n < 0 || n > 3);
@@ -49,7 +49,13 @@ int main()
     }
     case 3:
     {
-        // Eliminar registro
+        std::string dni;
+        do
+        {
+            std::cout << "Ingrese el dni: ";
+            std::cin >> dni;
+        } while (dni.size() < 8 || !std::all_of(dni.begin(), dni.end(), ::isdigit)); // Validar que el dni tenga 8 caracteres (numeros)
+        noteRegistro(filename, cabeceraMain, cabeceraPos, dni);
         break;
     }
     case 0:
