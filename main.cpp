@@ -2,21 +2,6 @@
 #include <algorithm>
 #include "BinaryHandler.h"
 
-// Funcion para obtener el tamaño de un archivo
-std::uintmax_t GetFileSize(const std::string &filename)
-{
-    std::ifstream in(filename, std::ios::binary | std::ios::ate);
-    if (!in.is_open())
-    {
-        std::cerr << "Error al abrir el archivo para obtener el tamanio." << std::endl;
-        return -1;
-    }
-    std::uintmax_t fileSize = in.tellg();
-    in.close();
-    std::cout << "Tamanio del archivo: " << fileSize << " bytes" << std::endl;
-    return fileSize;
-}
-
 int main()
 {
     std::cout << "Ingrese nombre y extension del archivo a leer: ";
@@ -30,11 +15,11 @@ int main()
     int n;
     do
     {
-        std::cout << "Ingrese una opcion: " << std::endl;
-        std::cout << "1. Buscar registro" << std::endl;
-        std::cout << "2. Agregar registro" << std::endl;
-        std::cout << "3. Eliminar registro" << std::endl;
-        std::cout << "0. Salir" << std::endl;
+        std::cout << "Ingrese una opcion: " << '\n';
+        std::cout << "1. Buscar registro" << '\n';
+        std::cout << "2. Agregar registro" << '\n';
+        std::cout << "3. Eliminar registro" << '\n';
+        std::cout << "0. Salir" << '\n';
         std::cin >> n;
     } while (n < 0 || n > 3);
 
@@ -55,10 +40,11 @@ int main()
         {
             std::cout << "Ingrese el dni a agregar: ";
             std::cin >> dni;
-        } while (dni.size() != 8 && !std::all_of(dni.begin(), dni.end(), ::isdigit)); // Validar que el dni tenga 8 caracteres (numeros)
+        } while (dni.size() < 8 || !std::all_of(dni.begin(), dni.end(), ::isdigit)); // Validar que el dni tenga 8 caracteres (numeros)
         std::cout << "Ingrese los datos a agregar separados por comas: ";
-        std::cin >> line;
-        addRegistro(filename, cabeceraMain, cabeceraPos, dni, line);
+        std::cin.ignore();
+        std::getline(std::cin, line);
+        addRegistro(filename, cabeceraMain, cabeceraPos, dni, dni + "," + line);
         break;
     }
     case 3:

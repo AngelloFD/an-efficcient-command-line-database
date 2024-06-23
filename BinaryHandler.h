@@ -8,7 +8,7 @@
 
 using std::filesystem::path;
 
-#define MAX_SIZE 50000
+#define MAX_SIZE 80000
 
 struct RegistroBin // 64 bytes
 {
@@ -78,16 +78,14 @@ void escribirArchivosBinario(const std::string &filename, Cabecera &cabeceraMain
         std::ifstream file(filename);
         if (!file.is_open())
         {
-            std::cerr << "Error: file not found" << std::endl;
-            return;
+            throw std::runtime_error("Error: archivo no encontrado");
         }
 
         std::ofstream binFile(binname, std::ios::binary);
         std::ofstream posBinFile(posbinname, std::ios::binary);
         if (!binFile.is_open() || !posBinFile.is_open())
         {
-            std::cerr << "Error: could not create binary file" << std::endl;
-            return;
+            throw std::runtime_error("Error: no se pudo abrir el archivo binario");
         }
 
         binFile.seekp(sizeof(Cabecera) - 1);
@@ -138,23 +136,20 @@ long buscarOffsetDelRegistro(const std::string &filename, const std::string &dni
     path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin";
     if (!std::filesystem::exists(binname) || !std::filesystem::exists(posbinname))
     {
-        std::cerr << "Error: binary files not found" << std::endl;
-        return -1;
+        throw std::runtime_error("Error: archivo binario no encontrado");
     }
 
     std::ifstream binFile(binname, std::ios::binary);
     std::ifstream posBinFile(posbinname, std::ios::binary);
     if (!binFile.is_open() || !posBinFile.is_open())
     {
-        std::cerr << "Error: could not open binary files" << std::endl;
-        return -1;
+        throw std::runtime_error("Error: no se pudo abrir el archivo binario");
     }
 
     Cabecera cabeceraBin, cabeceraPosBin;
     if (!binFile.read(reinterpret_cast<char *>(&cabeceraBin), sizeof(Cabecera)) || !posBinFile.read(reinterpret_cast<char *>(&cabeceraPosBin), sizeof(Cabecera)))
     {
-        std::cerr << "Error: could not read binary file headers" << std::endl;
-        return -1;
+        throw std::runtime_error("Error: no se pudo leer los headers");
     }
 
     Trie trie;
@@ -167,8 +162,7 @@ long buscarOffsetDelRegistro(const std::string &filename, const std::string &dni
             std::unique_ptr<RegistroPos> regPos = std::make_unique<RegistroPos>(RegistroPos::readFrom(posBinFile));
             if (!posBinFile.good())
             {
-                std::cerr << "Error: could not read position binary file" << std::endl;
-                return -1;
+                throw std::runtime_error("Error: no se pudo leer el archivo de posiciones");
             }
             trie.insert(regPos->dni, regPos->offset);
             registrosLeidos++;
@@ -208,8 +202,7 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
     std::ifstream binFile(binname, std::ios::binary);
     if (!binFile.is_open())
     {
-        std::cerr << "Error: could not open binary file" << std::endl;
-        return;
+        throw std::runtime_error("Error: no se pudo abrir el archivo binario");
     }
 
     binFile.seekg(offset);
@@ -223,59 +216,54 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
  * @param dni DNI a agregar
  * @param newData Datos a agregar
  */
-void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &cabeceraPos, const std::string &dni, const std::string &newData) // BUG: No agrega toda la newData
+void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &cabeceraPos, const std::string &dni, const std::string &newData)
 {
-    long offset = buscarOffsetDelRegistro(filename, dni);
-    if (offset == -1)
-    {
-        // El registro no existe, se debe agregar al final del archivo
-        path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";        // Archivo binario con los registros
-        path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin"; //  Archivo binario con las posición de los registros
-
-        std::fstream binFile(binname, std::ios::binary | std::ios::in | std::ios::out);
-        std::fstream posBinFile(posbinname, std::ios::binary | std::ios::in | std::ios::out);
-        if (!binFile.is_open() || !posBinFile.is_open())
-        {
-            std::cerr << "Error: could not create binary file" << std::endl;
-            return;
-        }
-
-        if (!binFile.read(reinterpret_cast<char *>(&cabeceraMain), sizeof(Cabecera)) || !posBinFile.read(reinterpret_cast<char *>(&cabeceraPos), sizeof(Cabecera)))
-        {
-            std::cerr << "Error: could not read binary file headers" << std::endl;
-            return;
-        }
-
-        binFile.seekp(0, std::ios::end);
-        posBinFile.seekp(0, std::ios::end);
-        long currentPos = binFile.tellp();
-
-        size_t dniSize = dni.size();
-        posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
-        posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-        posBinFile.write(dni.c_str(), dniSize);
-
-        binFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-        binFile.write(dni.c_str(), dniSize);
-
-        size_t lineSize = newData.size();
-        binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
-        binFile.write(newData.c_str(), lineSize);
-
-        cabeceraMain.num_registros++;
-        cabeceraPos.num_registros++;
-
-        binFile.seekp(0, std::ios::beg);
-        binFile.write(reinterpret_cast<const char *>(&cabeceraMain), sizeof(cabeceraMain));
-        posBinFile.seekp(0, std::ios::beg);
-        posBinFile.write(reinterpret_cast<const char *>(&cabeceraPos), sizeof(cabeceraPos));
-
-        binFile.close();
-        posBinFile.close();
-    }
-    else
+    if (buscarOffsetDelRegistro(filename, dni) != -1)
     {
         std::cout << "Registro ya existe" << std::endl;
+        return;
     }
-    std::cout << "Registro agregado" << std::endl;
+
+    path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";
+    path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin";
+
+    std::fstream binFile(binname, std::ios::binary | std::ios::out | std::ios::in);
+    std::fstream posBinFile(posbinname, std::ios::binary | std::ios::out | std::ios::in);
+    if (!binFile.is_open() || !posBinFile.is_open())
+    {
+        throw std::runtime_error("Error: no se pudo abrir el archivo binario");
+    }
+
+    if (!binFile.read(reinterpret_cast<char *>(&cabeceraMain), sizeof(Cabecera)) || !posBinFile.read(reinterpret_cast<char *>(&cabeceraPos), sizeof(Cabecera)))
+    {
+        throw std::runtime_error("Error: no se pudo leer los headers");
+    }
+
+    // Obtener la posicion en la que el ultimo registro tanto de posicion como de datos termina
+    binFile.seekp(0, std::ios::end);
+    posBinFile.seekp(0, std::ios::end);
+
+    long currentPos = posBinFile.tellp();
+    size_t dniSize = dni.size();
+    posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
+    posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
+    posBinFile.write(dni.c_str(), dniSize);
+
+    size_t lineSize = newData.size();
+    binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
+    binFile.write(newData.c_str(), lineSize);
+
+    cabeceraMain.num_registros++;
+    cabeceraPos.num_registros++;
+
+    // Reescribir las cabeceras actualizadas
+    binFile.seekp(0, std::ios::beg);
+    binFile.write(reinterpret_cast<const char *>(&cabeceraMain), sizeof(cabeceraMain));
+    posBinFile.seekp(0, std::ios::beg);
+    posBinFile.write(reinterpret_cast<const char *>(&cabeceraPos), sizeof(cabeceraPos));
+
+    std::cout << "Registro agregado exitosamente" << std::endl;
+
+    binFile.close();
+    posBinFile.close();
 }
