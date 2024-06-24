@@ -8,16 +8,15 @@
 
 using std::filesystem::path;
 
-#define MAX_SIZE 80000
+#define MAX_SIZE 200000
 
-struct RegistroBin // 64 bytes
+struct RegistroBin
 {
-    std::string dni;
-    std::string datos;
+    std::string dni = "";
+    std::string datos = "";
     // Constructor para inicializar los atributos de la estructura
     RegistroBin(const std::string &dni, const std::string &datos) : dni(dni), datos(datos) {}
     RegistroBin() = default;
-    ~RegistroBin(){};
 
     // Deserializacion de un RegistroBin desde un archivo binario
     static RegistroBin readFrom(std::ifstream &file)
@@ -74,6 +73,13 @@ struct Cabecera // 8 bytes
     Cabecera(long num_registros) : num_registros(num_registros) {}
 };
 
+/**
+ * @brief Funcion para serializar un registro en los archivos binarios
+ * @param posBinFile Archivo binario de posiciones
+ * @param binFile Archivo binario de registros
+ * @param dni DNI del registro
+ * @param line Linea del registro
+ */
 void serializarRegistro(std::ofstream &posBinFile, std::ofstream &binFile, const std::string &dni, const std::string &line)
 {
     size_t dniSize = dni.size();
@@ -137,22 +143,6 @@ void escribirArchivosBinario(const std::string &filename, Cabecera &cabeceraMain
 
             serializarRegistro(posBinFile, binFile, dni, line);
 
-            // // Serializamos los registros
-            // size_t dniSize = dni.size();
-            // posBinFile.write(reinterpret_cast<const char *>(&currentPos), sizeof(currentPos));
-            // posBinFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-            // posBinFile.write(dni.c_str(), dniSize);
-
-            // // Serializamos los registros
-            // // Primero, serializamos el dni
-            // binFile.write(reinterpret_cast<const char *>(&dniSize), sizeof(dniSize));
-            // binFile.write(dni.c_str(), dniSize);
-
-            // // Luego, serializamos la linea
-            // size_t lineSize = line.size();
-            // binFile.write(reinterpret_cast<const char *>(&lineSize), sizeof(lineSize));
-            // binFile.write(line.c_str(), lineSize);
-
             cabeceraMain.num_registros++;
             cabeceraPos.num_registros++;
         }
@@ -167,6 +157,12 @@ void escribirArchivosBinario(const std::string &filename, Cabecera &cabeceraMain
     return;
 }
 
+/**
+ * @brief Funcion para buscar el offset de un registro en el archivo binario
+ * @param filename Nombre del archivo csv
+ * @param dni DNI a buscar
+ * @return Offset del registro en el archivo binario
+ */
 long buscarOffsetDelRegistro(const std::string &filename, const std::string &dni)
 {
     path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";
@@ -213,13 +209,6 @@ long buscarOffsetDelRegistro(const std::string &filename, const std::string &dni
     }
     return -1; // DNI no encontrado
 }
-
-// Estrategia para la busqueda de un registro
-// 1. Se lee la cabecera del archivo de posiciones
-// 2. Se lee la cabecera del archivo de registros
-// 3. Se busca el dni en el archivo de posiciones
-// 4. Se lee el registro en la posición encontrada
-// 5. Se muestra el registro
 
 /**
  * @brief Funcion para buscar y mostrar un registro en el archivo binario
@@ -311,6 +300,11 @@ void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &
     posBinFile.close();
 }
 
+/**
+ * @brief Funcion para anotar un registro del archivo binario como desactivado
+ * @param filename Nombre del archivo csv
+ * @param dni DNI a anotar
+ */
 void noteRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &cabeceraPos, const std::string &dni)
 {
     long offset = buscarOffsetDelRegistro(filename, dni);

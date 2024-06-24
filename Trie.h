@@ -1,18 +1,18 @@
 #pragma once
 #include <iostream>
 #include <string>
-#include <unordered_map>
 
 using namespace std;
 
-// Nodo del árbol de prefijos
+// Clase del árbol de prefijos
 class Trie
 {
 private:
+	// Nodo del árbol de prefijos
 	struct TrieNode
 	{
-		long posicion = -1;			 // posición de la palabra en el archivo
-		TrieNode *children[10] = {}; // array de punteros a los nodos hijos
+		long posicion = -1;			 // posición de la palabra en el archivo, 8 bytes
+		TrieNode *children[10] = {}; // array de punteros a los nodos hijos, 80 bytes
 
 		// Destructor para liberar memoria de los nodos hijos
 		~TrieNode()
@@ -26,6 +26,7 @@ private:
 
 	TrieNode *root; // nodo raíz del Trie
 
+	// Función para liberar memoria de un nodo y sus hijos
 	void clearNode(TrieNode *node)
 	{
 		if (node != nullptr)
@@ -35,7 +36,6 @@ private:
 	}
 
 public:
-	// Constructor
 	Trie() : root(new TrieNode()) {}
 
 	~Trie()
@@ -43,7 +43,11 @@ public:
 		clear();
 	}
 
-	// insertar una palabra en el trie
+	/**
+	 * @brief Insertar una palabra en el árbol de prefijos
+	 * @param palabra Palabra a insertar
+	 * @param posicion Posición de la palabra en el archivo
+	 */
 	void insert(const string &palabra, long posicion)
 	{
 		TrieNode *node = root; // comenzamos el recorrido desde la raíz
@@ -51,8 +55,7 @@ public:
 		for (char c : palabra)
 		{
 			int index = c - '0'; // Convertir el carácter a índice (0-9)
-			// si el caracter no está en el recorrido (hijos) del nodo actual
-			// lo agregamos
+			// si el caracter no está en el recorrido (hijos) del nodo actual lo agregamos
 			if (node->children[index] == nullptr)
 			{
 				node->children[index] = new TrieNode(); // Crear un nuevo nodo hijo
@@ -62,28 +65,17 @@ public:
 		node->posicion = posicion; // guardar la posicion de la palabra en el archivo
 	}
 
-	bool search(const string &palabra)
-	{
-		TrieNode *node = root;
-		for (char c : palabra)
-		{
-			int index = c - '0';
-			// Si el caracter no está presente entre los hijos
-			if (node->children[index] == nullptr)
-			{
-				return false; // la palabra no existe en el árbol
-			}
-			node = node->children[index];
-		}
-		return node != nullptr && node->posicion != -1; // la palabra existe en el árbol
-	}
-
+	/**
+	 * @brief Buscar una palabra en el árbol de prefijos
+	 * @param palabra Palabra a buscar
+	 * @return Posición de la palabra en el archivo si existe, -1 en caso contrario
+	 */
 	long searchAndGetOffset(const string &palabra)
 	{
 		TrieNode *node = root;
 		for (char c : palabra)
 		{
-			int index = c - '0';
+			int index = c - '0'; // Conversion de caracter a índice (0-9) en ascii
 			// Si el caracter no está presente entre los hijos
 			if (node->children[index] == nullptr)
 			{
