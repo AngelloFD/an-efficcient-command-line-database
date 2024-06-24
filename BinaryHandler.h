@@ -4,6 +4,7 @@
 #include <vector>
 #include <filesystem>
 #include <memory>
+#include <chrono>
 #include "Trie.h"
 
 using std::filesystem::path;
@@ -165,6 +166,7 @@ void escribirArchivosBinario(const std::string &filename, Cabecera &cabeceraMain
  */
 long buscarOffsetDelRegistro(const std::string &filename, const std::string &dni)
 {
+    auto start = std::chrono::high_resolution_clock::now();
     path binname = filename.substr(0, filename.find_last_of('.')) + ".bin";
     path posbinname = filename.substr(0, filename.find_last_of('.')) + "_pos.bin";
     if (!std::filesystem::exists(binname) || !std::filesystem::exists(posbinname))
@@ -203,10 +205,16 @@ long buscarOffsetDelRegistro(const std::string &filename, const std::string &dni
         long offset = trie.searchAndGetOffset(dni);
         if (offset != -1)
         {
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = end - start;
+            std::cout << "Tiempo de busqueda: " << elapsed.count() << "s" << std::endl;
             return offset;
         }
         trie.clear();
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Tiempo de busqueda: " << elapsed.count() << "s" << std::endl;
     return -1; // DNI no encontrado
 }
 
@@ -244,9 +252,13 @@ void buscarRegistro(const std::string &filename, const std::string &dni)
  */
 void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &cabeceraPos, const std::string &dni, const std::string &newData)
 {
+    auto start = std::chrono::high_resolution_clock::now();
     if (buscarOffsetDelRegistro(filename, dni) != -1)
     {
         std::cout << "Registro ya existe" << std::endl;
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        std::cout << "Tiempo de ingreso del registro: " << elapsed.count() << "s" << std::endl;
         return;
     }
 
@@ -298,6 +310,9 @@ void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &
 
     binFile.close();
     posBinFile.close();
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Tiempo de ingreso del registro: " << elapsed.count() << "s" << std::endl;
 }
 
 /**
@@ -307,10 +322,14 @@ void addRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &
  */
 void noteRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera &cabeceraPos, const std::string &dni)
 {
+    auto start = std::chrono::high_resolution_clock::now();
     long offset = buscarOffsetDelRegistro(filename, dni);
     if (offset == -1)
     {
         std::cout << "Registro no encontrado" << std::endl;
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        std::cout << "Tiempo de anotacion del registro: " << elapsed.count() << "s" << std::endl;
         return;
     }
 
@@ -335,4 +354,7 @@ void noteRegistro(const std::string &filename, Cabecera &cabeceraMain, Cabecera 
     std::cout << "Registro anotado exitosamente" << std::endl;
 
     writeBinFile.close();
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Tiempo de anotacion del registro: " << elapsed.count() << "s" << std::endl;
 }
